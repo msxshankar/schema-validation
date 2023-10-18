@@ -2,7 +2,7 @@
 .*.swp
 .beamer
 # Package Files #
-*.jar
+#*.jar
 *.war
 *.ear
 
@@ -21,7 +21,7 @@ build/
 .gradle/
 .stickyStorage
 .build/
-target/
+#target/
 
 # Node log
 npm-*.log
