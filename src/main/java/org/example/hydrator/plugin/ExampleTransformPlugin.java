@@ -23,14 +23,15 @@ import io.cdap.cdap.api.annotation.Plugin;
 import io.cdap.cdap.api.data.format.StructuredRecord;
 import io.cdap.cdap.api.data.schema.Schema;
 import io.cdap.cdap.api.plugin.PluginConfig;
-import io.cdap.cdap.etl.api.Emitter;
-import io.cdap.cdap.etl.api.PipelineConfigurer;
-import io.cdap.cdap.etl.api.Transform;
-import io.cdap.cdap.etl.api.TransformContext;
+import io.cdap.cdap.etl.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.List;
 import javax.annotation.Nullable;
 
@@ -68,11 +69,15 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
     // published if this throws an error.
     Schema inputSchema = pipelineConfigurer.getStageConfigurer().getInputSchema();
     config.validate(inputSchema);
+
+    Schema oschema;
+
     try {
-      pipelineConfigurer.getStageConfigurer().setOutputSchema(Schema.parseJson(config.schema));
+       oschema = Schema.parseJson(config.schema);
     } catch (IOException e) {
-      throw new IllegalArgumentException("Output schema cannot be parsed.", e);
+      throw new RuntimeException(e);
     }
+    pipelineConfigurer.getStageConfigurer().setOutputSchema(oschema);
   }
 
   /**
@@ -84,7 +89,12 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
   @Override
   public void initialize(TransformContext context) throws Exception {
     super.initialize(context);
-    outputSchema = Schema.parseJson(config.schema);
+    //outputSchema = Schema.parseJson(config.schema);
+    Schema inputSchema = Schema.parseJson(config.schema);
+
+    outputSchema = context.getOutputSchema();
+    System.out.println(outputSchema);
+    //outputSchema = getOutputSchema(config, inputSchema);
   }
 
   /**
@@ -98,20 +108,216 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
   public void transform(StructuredRecord input, Emitter<StructuredRecord> emitter) throws Exception {
     // Get all the fields that are in the output schema
     List<Schema.Field> fields = outputSchema.getFields();
+
     // Create a builder for creating the output record
     StructuredRecord.Builder builder = StructuredRecord.builder(outputSchema);
+    StructuredRecord.Builder error = StructuredRecord.builder(input.getSchema());
+
+    // Create schema list
+    ArrayList<String> inputSchema = new ArrayList<>();
+    for (Schema.Field fd : fields) {
+        inputSchema.add(fd.getSchema().toString().replace("\"", ""));
+        System.out.println(fd.getSchema());
+    }
+
+    // Create list of records that will be dynamically updated
+    // For valid records
+    ArrayList<Object> validRecordList = new ArrayList<>();
+
+    // For invalid records
+    ArrayList<Object> invalidRecordList = new ArrayList<>();
+
+    // Schema list iterator
+    int iterator = 0;
+
     // Add all the values to the builder
     for (Schema.Field field : fields) {
+
       String name = field.getName();
+
       if (input.get(name) != null) {
-        builder.set(name, input.get(name));
+
+        // Comparing fields for schema validation
+
+        /*
+        1. Establish a list of fields and data types from GCS schema bucket
+        2. Use a for loop to compare each field of the raw data to schema data types
+           Can use built-in Java functions for thi
+        3. Records that pass the validation should be emitted
+
+        switch (inputSchema.get(iterator)) {
+          case "Int" -> int_validation(input.get(name));
+        };
+
+        */
+
+        if (inputSchema.get(iterator).equals("int")) {
+          try {
+            System.out.println((String) input.get(name));
+
+            Integer.parseInt(input.get(name));
+            validRecordList.add(Integer.parseInt(input.get(name)));
+
+          } catch (Exception e) {
+
+            invalidRecordList.add(input.get(name));
+            validRecordList.add(input.get(name));
+
+          }
+
+        }
+
+        else if (inputSchema.get(iterator).equals("string")) {
+
+          try {
+            String outputString = input.get(name).toString();
+
+            validRecordList.add(outputString);
+
+          } catch (Exception e) {
+            invalidRecordList.add(input.get(name));
+            validRecordList.add(input.get(name));
+
+          }
+        }
+
+        else if (inputSchema.get(iterator).equals("float")) {
+
+          try {
+            Float.parseFloat(input.get(name));
+
+            validRecordList.add(Float.parseFloat(input.get(name)));
+          }
+          catch (Exception e) {
+            invalidRecordList.add(input.get(name));
+            validRecordList.add(input.get(name));
+          }
+        }
+
+        else if (inputSchema.get(iterator).equals("long")) {
+
+          try {
+            Long.parseLong(input.get(name));
+
+            validRecordList.add(Long.parseLong(input.get(name)));
+          }
+          catch (Exception e) {
+            invalidRecordList.add(input.get(name));
+            validRecordList.add(input.get(name));
+          }
+        }
+
+        else if (inputSchema.get(iterator).equals("double")) {
+
+          try {
+            Double.parseDouble(input.get(name));
+
+            validRecordList.add(Double.parseDouble(input.get(name)));
+          }
+          catch (Exception e) {
+            invalidRecordList.add(input.get(name));
+            validRecordList.add(input.get(name));
+          }
+        }
+
+        else if (inputSchema.get(iterator).equals("boolean")) {
+
+          try {
+            Boolean.parseBoolean(input.get(name));
+
+            validRecordList.add(Boolean.parseBoolean(input.get(name)));
+          }
+          catch (Exception e) {
+            invalidRecordList.add(input.get(name));
+            validRecordList.add(input.get(name));
+          }
+        }
+
+        else if (inputSchema.get(iterator).equals("bytes")) {
+
+          try {
+            Byte.parseByte(input.get(name));
+
+            validRecordList.add(Byte.parseByte(input.get(name)));
+          }
+          catch (Exception e) {
+            invalidRecordList.add(input.get(name));
+            validRecordList.add(input.get(name));
+          }
+        }
+
+        /*
+        else if (inputSchema.get(iterator).equals("timestamp")) {
+
+          DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-uuuu HH:mm:ss:SSS");
+          try {
+            LocalDateTime.parse(input.get(name), formatter);
+            validRecordList.add(input.get(name));
+          }
+          catch (DateTimeParseException e) {
+            invalidRecordList.add(input.get(name));
+            validRecordList.add(input.get(name));
+          }
+        }
+        */
+        iterator++;
       }
     }
+        int result = setRecords(invalidRecordList);
+        System.out.println(validRecordList.size());
+
+        int rt = 0;
+        // No errors
+        if (result == 1) {
+          while (rt < fields.size()) {
+            builder.set(fields.get(rt).getName(), validRecordList.get(rt));
+            rt++;
+          }
+        }
+        else if (result == 2) {
+          while (rt < fields.size()) {
+            error.set(fields.get(rt).getName(), validRecordList.get(rt));
+            rt++;
+          }
+        }
+
     // If you wanted to make additional changes to the output record, this might be a good place to do it.
 
-    // Finally, build and emit the record.
-    emitter.emit(builder.build());
+    if (!invalidRecordList.isEmpty()) {
+      InvalidEntry<StructuredRecord> invalidEntry = new InvalidEntry<>(1, "Records do not match schema", error.build());
+      emitter.emitError(invalidEntry);
+    }
+
+    else {
+
+      // Finally, build and emit the record.
+      emitter.emit(builder.build());
+    }
   }
+
+  // Set Output Schema
+  private static Schema getOutputSchema(Config config, Schema inputSchema) {
+    List<Schema.Field> fields = new ArrayList<>();
+
+    fields.add(Schema.Field.of("name", Schema.of(Schema.Type.STRING)));
+    fields.add(Schema.Field.of("age", Schema.of(Schema.Type.INT)));
+    fields.add(Schema.Field.of("date", Schema.of(Schema.Type.STRING)));
+
+    return Schema.recordOf(inputSchema.getRecordName(), fields);
+  }
+
+  // Emit whole records
+  public static int setRecords(ArrayList<Object> invalidRecordList) {
+
+    if (invalidRecordList.isEmpty()) {
+     return 1;
+    }
+
+    else {
+      return 2;
+    }
+  }
+
 
   /**
    * This function will be called at the end of the pipeline. You can use it to clean up any variables or connections.
@@ -163,5 +369,11 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
       // If your plugin depends on fields from the input schema being present or the right type, use inputSchema
     }
   }
+
+  /*
+  public void int_validation(String value){
+
+  }
+  */
 }
 
