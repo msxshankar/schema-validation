@@ -27,12 +27,13 @@ import io.cdap.cdap.etl.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
+import java.io.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 /**
@@ -67,17 +68,46 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
     super.configurePipeline(pipelineConfigurer);
     // It's usually a good idea to validate the configuration at this point. It will stop the pipeline from being
     // published if this throws an error.
-    Schema inputSchema = pipelineConfigurer.getStageConfigurer().getInputSchema();
-    config.validate(inputSchema);
+
+    //Schema inputSchema = pipelineConfigurer.getStageConfigurer().getInputSchema();
+    //config.validate(inputSchema);
+
+    //File jsonSchema = new File("/home/mayur/Documents/lbg-projects/cdap-env/int-schema.json");
+
+    FileReader jsonSchema = null;
+
+    try {
+      BufferedReader br = new BufferedReader(new FileReader("/home/mayur/Documents/lbg-projects/cdap-env/schema.json"));
+
+
+      String jsonSchemaString = br.lines().collect(Collectors.joining());
+
+      //jsonSchemaString = jsonSchemaString.replace(" ","");
+      //jsonSchemaString = jsonSchemaString.replaceAll("^.|.$", "");
+      //jsonSchemaString = jsonSchemaString.replaceAll("^.|.$", "");
+
+
+      System.out.println(jsonSchemaString);
+
+      Schema oschema = Schema.parseJson(jsonSchemaString);
+
+    } catch (IOException e) {
+      throw new RuntimeException("no try");
+    }
+
+    /*
+    //final String jsonSchemaString = jsonSchema.toString();
 
     Schema oschema;
 
     try {
-       oschema = Schema.parseJson(config.schema);
+       //oschema = Schema.parseJson(config.schema);
+        oschema = Schema.parseJson(jsonSchema);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
-    pipelineConfigurer.getStageConfigurer().setOutputSchema(oschema);
+    */
+    //pipelineConfigurer.getStageConfigurer().setOutputSchema(oschema);
   }
 
   /**
@@ -91,10 +121,12 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
     super.initialize(context);
     //outputSchema = Schema.parseJson(config.schema);
     Schema inputSchema = Schema.parseJson(config.schema);
+    System.out.println(config.schema);
 
-    outputSchema = context.getOutputSchema();
-    System.out.println(outputSchema);
-    //outputSchema = getOutputSchema(config, inputSchema);
+    //outputSchema = context.getOutputSchema();
+    //System.out.println(outputSchema);
+    outputSchema = getOutputSchema(config, inputSchema);
+
   }
 
   /**
@@ -117,7 +149,7 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
     ArrayList<String> inputSchema = new ArrayList<>();
     for (Schema.Field fd : fields) {
         inputSchema.add(fd.getSchema().toString().replace("\"", ""));
-        System.out.println(fd.getSchema());
+        LOG.info(String.valueOf(fd.getSchema()));
     }
 
     // Create list of records that will be dynamically updated
@@ -134,6 +166,8 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
     for (Schema.Field field : fields) {
 
       String name = field.getName();
+
+      LOG.info("log should appear here");
 
       if (input.get(name) != null) {
 
@@ -153,7 +187,6 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
 
         if (inputSchema.get(iterator).equals("int")) {
           try {
-            System.out.println((String) input.get(name));
 
             Integer.parseInt(input.get(name));
             validRecordList.add(Integer.parseInt(input.get(name)));
@@ -264,7 +297,6 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
       }
     }
         int result = setRecords(invalidRecordList);
-        System.out.println(validRecordList.size());
 
         int rt = 0;
         // No errors
@@ -301,7 +333,7 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
 
     fields.add(Schema.Field.of("name", Schema.of(Schema.Type.STRING)));
     fields.add(Schema.Field.of("age", Schema.of(Schema.Type.INT)));
-    fields.add(Schema.Field.of("date", Schema.of(Schema.Type.STRING)));
+    //fields.add(Schema.Field.of("date", Schema.of(Schema.Type.STRING)));
 
     return Schema.recordOf(inputSchema.getRecordName(), fields);
   }
