@@ -36,7 +36,7 @@ public class ExampleTransformTest {
 
   @Test
   public void testMyTransform() throws Exception {
-    ExampleTransformPlugin.Config config = new ExampleTransformPlugin.Config("SomeValue", null, INPUT.toString());
+    ExampleTransformPlugin.Config config = new ExampleTransformPlugin.Config("/home/mayur/Documents/lbg-projects/cdap-env/int-schema.json", null, INPUT.toString());
     Transform<StructuredRecord, StructuredRecord> transform = new ExampleTransformPlugin(config);
     transform.configurePipeline(null);
     transform.initialize(null);

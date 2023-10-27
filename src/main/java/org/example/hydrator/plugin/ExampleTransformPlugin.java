@@ -77,7 +77,7 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
     FileReader jsonSchema = null;
 
     try {
-      BufferedReader br = new BufferedReader(new FileReader("/home/mayur/Documents/lbg-projects/cdap-env/schema.json"));
+      BufferedReader br = new BufferedReader(new FileReader(config.schemaPath));
 
 
       String jsonSchemaString = br.lines().collect(Collectors.joining());
@@ -87,9 +87,9 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
       //jsonSchemaString = jsonSchemaString.replaceAll("^.|.$", "");
 
 
-      System.out.println(jsonSchemaString);
+      System.out.println(jsonSchemaString)
 
-      Schema oschema = Schema.parseJson(jsonSchemaString);
+      //Schema oschema = Schema.parseJson(jsonSchemaString);
 
     } catch (IOException e) {
       throw new RuntimeException("no try");
@@ -367,7 +367,7 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
     @Name("myOption")
     @Description("This option is required for this transform.")
     @Macro // <- Macro means that the value will be substituted at runtime by the user.
-    private final String myOption;
+    private final String schemaPath;
 
     @Name("myOptionalOption")
     @Description("And this option is not.")
@@ -379,8 +379,8 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
     @Description("Specifies the schema of the records outputted from this plugin.")
     private final String schema;
 
-    public Config(String myOption, Integer myOptionalOption, String schema) {
-      this.myOption = myOption;
+    public Config(String schemaPath, Integer myOptionalOption, String schema) {
+      this.schemaPath = schemaPath;
       this.myOptionalOption = myOptionalOption;
       this.schema = schema;
     }
@@ -394,7 +394,7 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
         throw new IllegalArgumentException("Output schema cannot be parsed.", e);
       }
       // This method should be used to validate that the configuration is valid.
-      if (myOption == null || myOption.isEmpty()) {
+      if (schemaPath == null || schemaPath.isEmpty()) {
         throw new IllegalArgumentException("myOption is a required field.");
       }
       // You can use the containsMacro() function to determine if you can validate at deploy time or runtime.

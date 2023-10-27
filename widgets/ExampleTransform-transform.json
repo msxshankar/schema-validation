@@ -8,19 +8,22 @@
       "properties": [
         {
           "widget-type": "textbox",
-          "label": "My Option",
-          "name": "myOption",
+          "label": "Path Name",
+          "name": "Schema Path Name",
           "widget-attributes": {
             "width": "large",
-            "default": "an example default value"
+            "default": "Example: /path/schema.json"
           }
         },
         {
           "widget-type": "textbox",
-          "label": "My Optional Option",
           "name": "myOptionalOption",
-          "widget-attributes": {
-            "width": "large"
+          "plugin-function": {
+            "method": "POST",
+            "widget": "outputSchema",
+            "label": "Get output schema",
+            "button-class": "btn-primary",
+            "plugin-method": "configurePipeline"
           }
         }
       ]
