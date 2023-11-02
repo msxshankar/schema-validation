@@ -71,43 +71,51 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
    */
   @Override
   public void configurePipeline(PipelineConfigurer pipelineConfigurer) throws IllegalArgumentException {
-    super.configurePipeline(pipelineConfigurer);
-    // It's usually a good idea to validate the configuration at this point. It will stop the pipeline from being
-    // published if this throws an error.
+      super.configurePipeline(pipelineConfigurer);
+      // It's usually a good idea to validate the configuration at this point. It will stop the pipeline from being
+      // published if this throws an error.
 
-    Schema inputSchema = pipelineConfigurer.getStageConfigurer().getInputSchema();
-    config.validate(inputSchema);
+      Schema inputSchema = pipelineConfigurer.getStageConfigurer().getInputSchema();
+      config.validate(inputSchema);
 
+    /*
     Storage storage = StorageOptions.newBuilder().setProjectId("playpen-223970").build().getService();
     Blob blob = storage.get(BlobId.of("schema-bk", "int-schema.json"));
 
     String jsonSchemaString = new String(blob.getContent());
+    */
+      //FileReader jsonSchema = null;
+      Schema oschema;
 
-    //FileReader jsonSchema = null;
-    Schema oschema;
+      String jsonSchemaString = null;
+      try {
+          //BufferedReader br = new BufferedReader(new FileReader(config.schemaPath));
 
-    try {
-      //BufferedReader br = new BufferedReader(new FileReader(config.schemaPath));
+          //String jsonSchemaString = br.lines().collect(Collectors.joining());
 
-      //String jsonSchemaString = br.lines().collect(Collectors.joining());
+          Storage storage = StorageOptions.newBuilder().setProjectId("playpen-223970").build().getService();
+          Blob blob = storage.get(BlobId.of("schema-bk", "int-schema.json"));
+          blob.downloadTo(Paths.get("~/Downloads/int-schema.json"));
 
-      // Removes all whitespace
-      jsonSchemaString = jsonSchemaString.replaceAll("\\s", "");
+          jsonSchemaString = new String(blob.getContent());
 
-      // Remove first two lines
-      jsonSchemaString = jsonSchemaString.replaceAll("\\[\\{\"name\":\"etlSchemaBody\",\"schema\":","");
+          // Removes all whitespace
+          jsonSchemaString = jsonSchemaString.replaceAll("\\s", "");
 
-      // Remove last two characters
-      jsonSchemaString = jsonSchemaString.substring(0, jsonSchemaString.length() - 2);
+          // Remove first two lines
+          jsonSchemaString = jsonSchemaString.replaceAll("\\[\\{\"name\":\"etlSchemaBody\",\"schema\":", "");
 
-      System.out.println(jsonSchemaString);
+          // Remove last two characters
+          jsonSchemaString = jsonSchemaString.substring(0, jsonSchemaString.length() - 2);
 
-      oschema = Schema.parseJson(jsonSchemaString);
+          System.out.println(jsonSchemaString);
 
-    } catch (IOException e) {
-      throw new RuntimeException(e);
+          oschema = Schema.parseJson(jsonSchemaString);
 
-    }
+      } catch (IOException e) {
+          throw new RuntimeException(e + jsonSchemaString);
+
+      }
 
 
     /*
@@ -122,7 +130,7 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
       throw new RuntimeException(e);
     }
     */
-    pipelineConfigurer.getStageConfigurer().setOutputSchema(oschema);
+      pipelineConfigurer.getStageConfigurer().setOutputSchema(oschema);
   }
 
   /**
