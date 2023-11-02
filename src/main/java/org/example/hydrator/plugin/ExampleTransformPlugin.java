@@ -95,9 +95,12 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
 
           Storage storage = StorageOptions.newBuilder().setProjectId("playpen-223970").build().getService();
           Blob blob = storage.get(BlobId.of("schema-bk", "int-schema.json"));
-          blob.downloadTo(Paths.get("~/Downloads/int-schema.json"));
+          blob.downloadTo(Paths.get("~/Downloads/gcs-folder/int-schema.json"));
 
-          jsonSchemaString = new String(blob.getContent());
+          BufferedReader br = new BufferedReader(new FileReader("~/Downloads/gcs-folder/int-schema.json"));
+          jsonSchemaString = br.lines().collect(Collectors.joining());
+
+          //jsonSchemaString = new String(blob.getContent());
 
           // Removes all whitespace
           jsonSchemaString = jsonSchemaString.replaceAll("\\s", "");
@@ -113,7 +116,7 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
           oschema = Schema.parseJson(jsonSchemaString);
 
       } catch (IOException e) {
-          throw new RuntimeException(e + jsonSchemaString);
+          throw new RuntimeException("The error: " + e + jsonSchemaString);
 
       }
 
