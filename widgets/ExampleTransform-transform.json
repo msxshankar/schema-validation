@@ -14,17 +14,6 @@
             "width": "large",
             "default": "Example: /path/schema.json"
           }
-        },
-        {
-          "widget-type": "textbox",
-          "name": "myOptionalOption",
-          "plugin-function": {
-            "method": "POST",
-            "widget": "outputSchema",
-            "label": "Get output schema",
-            "button-class": "btn-primary",
-            "plugin-method": "configurePipeline"
-          }
         }
       ]
     }

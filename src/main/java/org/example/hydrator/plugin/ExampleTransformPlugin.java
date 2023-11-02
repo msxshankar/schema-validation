@@ -36,6 +36,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
+import com.google.cloud.storage.Blob;
+import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageOptions;
+import java.nio.file.Paths;
+
 /**
  * Hydrator Transform Plugin Example - This provides a good starting point for building your own Transform Plugin
  * For full documentation, check out: https://docs.cask.co/cdap/current/en/developer-manual/pipelines/developing-plugins/index.html
@@ -69,31 +75,40 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
     // It's usually a good idea to validate the configuration at this point. It will stop the pipeline from being
     // published if this throws an error.
 
-    //Schema inputSchema = pipelineConfigurer.getStageConfigurer().getInputSchema();
-    //config.validate(inputSchema);
+    Schema inputSchema = pipelineConfigurer.getStageConfigurer().getInputSchema();
+    config.validate(inputSchema);
 
-    //File jsonSchema = new File("/home/mayur/Documents/lbg-projects/cdap-env/int-schema.json");
+    Storage storage = StorageOptions.newBuilder().setProjectId("playpen-223970").build().getService();
+    Blob blob = storage.get(BlobId.of("schema-bk", "int-schema.json"));
 
-    FileReader jsonSchema = null;
+    String jsonSchemaString = new String(blob.getContent());
+
+    //FileReader jsonSchema = null;
+    Schema oschema;
 
     try {
-      BufferedReader br = new BufferedReader(new FileReader(config.schemaPath));
+      //BufferedReader br = new BufferedReader(new FileReader(config.schemaPath));
 
+      //String jsonSchemaString = br.lines().collect(Collectors.joining());
 
-      String jsonSchemaString = br.lines().collect(Collectors.joining());
+      // Removes all whitespace
+      jsonSchemaString = jsonSchemaString.replaceAll("\\s", "");
 
-      //jsonSchemaString = jsonSchemaString.replace(" ","");
-      //jsonSchemaString = jsonSchemaString.replaceAll("^.|.$", "");
-      //jsonSchemaString = jsonSchemaString.replaceAll("^.|.$", "");
+      // Remove first two lines
+      jsonSchemaString = jsonSchemaString.replaceAll("\\[\\{\"name\":\"etlSchemaBody\",\"schema\":","");
 
+      // Remove last two characters
+      jsonSchemaString = jsonSchemaString.substring(0, jsonSchemaString.length() - 2);
 
-      System.out.println(jsonSchemaString)
+      System.out.println(jsonSchemaString);
 
-      //Schema oschema = Schema.parseJson(jsonSchemaString);
+      oschema = Schema.parseJson(jsonSchemaString);
 
     } catch (IOException e) {
-      throw new RuntimeException("no try");
+      throw new RuntimeException(e);
+
     }
+
 
     /*
     //final String jsonSchemaString = jsonSchema.toString();
@@ -107,7 +122,7 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
       throw new RuntimeException(e);
     }
     */
-    //pipelineConfigurer.getStageConfigurer().setOutputSchema(oschema);
+    pipelineConfigurer.getStageConfigurer().setOutputSchema(oschema);
   }
 
   /**
@@ -123,9 +138,9 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
     Schema inputSchema = Schema.parseJson(config.schema);
     System.out.println(config.schema);
 
-    //outputSchema = context.getOutputSchema();
-    //System.out.println(outputSchema);
-    outputSchema = getOutputSchema(config, inputSchema);
+    outputSchema = context.getOutputSchema();
+    System.out.println(outputSchema);
+    //outputSchema = getOutputSchema(config, inputSchema);
 
   }
 
@@ -350,6 +365,23 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
     }
   }
 
+  /*
+  // Int tryParse
+  public static int intTryParse (Integer value) {
+    try {
+
+      Integer.parseInt(input.get(name));
+      validRecordList.add(Integer.parseInt(input.get(name)));
+
+    } catch (Exception e) {
+
+      invalidRecordList.add(input.get(name));
+      validRecordList.add(input.get(name));
+
+    }
+
+  }
+  */
 
   /**
    * This function will be called at the end of the pipeline. You can use it to clean up any variables or connections.
