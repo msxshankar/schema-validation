@@ -27,20 +27,29 @@ import io.cdap.cdap.etl.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.text.DateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
+/*
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
-import java.nio.file.Paths;
+*/
 
 /**
  * Hydrator Transform Plugin Example - This provides a good starting point for building your own Transform Plugin
@@ -56,6 +65,13 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
   // Usually, you will need a private variable to store the config that was passed to your class
   private final Config config;
   private Schema outputSchema;
+
+  // Create list of records that will be dynamically updated
+  // For valid records
+  private static ArrayList<Object> validRecordList = new ArrayList<>();
+
+  // For invalid records
+  private static ArrayList<Object> invalidRecordList = new ArrayList<>();
 
   public ExampleTransformPlugin(Config config) {
     this.config = config;
@@ -75,21 +91,23 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
     // It's usually a good idea to validate the configuration at this point. It will stop the pipeline from being
     // published if this throws an error.
 
-    Schema inputSchema = pipelineConfigurer.getStageConfigurer().getInputSchema();
-    config.validate(inputSchema);
+    //Schema inputSchema = pipelineConfigurer.getStageConfigurer().getInputSchema();
+    //config.validate(inputSchema);
 
+    // GCS WIP
+    /*
     Storage storage = StorageOptions.newBuilder().setProjectId("playpen-223970").build().getService();
     Blob blob = storage.get(BlobId.of("schema-bk", "int-schema.json"));
 
     String jsonSchemaString = new String(blob.getContent());
+    */
 
-    //FileReader jsonSchema = null;
     Schema oschema;
 
     try {
-      //BufferedReader br = new BufferedReader(new FileReader(config.schemaPath));
+      BufferedReader br = new BufferedReader(new FileReader(config.schemaPath));
 
-      //String jsonSchemaString = br.lines().collect(Collectors.joining());
+      String jsonSchemaString = br.lines().collect(Collectors.joining());
 
       // Removes all whitespace
       jsonSchemaString = jsonSchemaString.replaceAll("\\s", "");
@@ -100,28 +118,16 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
       // Remove last two characters
       jsonSchemaString = jsonSchemaString.substring(0, jsonSchemaString.length() - 2);
 
-      System.out.println(jsonSchemaString);
+      System.out.println("jsonschema:" + jsonSchemaString);
 
+      // Finally parses schema
       oschema = Schema.parseJson(jsonSchemaString);
+      outputSchema = oschema;
 
     } catch (IOException e) {
-      throw new RuntimeException(e);
-
+      throw new RuntimeException("Error" + e);
     }
 
-
-    /*
-    //final String jsonSchemaString = jsonSchema.toString();
-
-    Schema oschema;
-
-    try {
-       //oschema = Schema.parseJson(config.schema);
-        oschema = Schema.parseJson(jsonSchema);
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
-    */
     pipelineConfigurer.getStageConfigurer().setOutputSchema(oschema);
   }
 
@@ -136,10 +142,12 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
     super.initialize(context);
     //outputSchema = Schema.parseJson(config.schema);
     Schema inputSchema = Schema.parseJson(config.schema);
-    System.out.println(config.schema);
+    //System.out.println(config.schema);
 
     outputSchema = context.getOutputSchema();
-    System.out.println(outputSchema);
+    //System.out.println(outputSchema);
+
+    // Use only for testing framework
     //outputSchema = getOutputSchema(config, inputSchema);
 
   }
@@ -156,23 +164,31 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
     // Get all the fields that are in the output schema
     List<Schema.Field> fields = outputSchema.getFields();
 
-    // Create a builder for creating the output record
+    // Create a builder for creating the output records
     StructuredRecord.Builder builder = StructuredRecord.builder(outputSchema);
+    // Create a builder for creating the error records
     StructuredRecord.Builder error = StructuredRecord.builder(input.getSchema());
+
+    // Clear lists
+    validRecordList.clear();
+    invalidRecordList.clear();
 
     // Create schema list
     ArrayList<String> inputSchema = new ArrayList<>();
+    int i = 0;
     for (Schema.Field fd : fields) {
-        inputSchema.add(fd.getSchema().toString().replace("\"", ""));
-        LOG.info(String.valueOf(fd.getSchema()));
+        if (fd.getSchema().getLogicalType() == null) {
+          inputSchema.add(fd.getSchema().toString().replace("\"", ""));
+        }
+        else {
+          inputSchema.add(fd.getSchema().getLogicalType().toString().replace("\"", ""));
+        }
+        System.out.println("Logical type:" + fd.getSchema().getLogicalType());
+        System.out.println("Type:" + fd.getSchema().getType());
+        LOG.info("LOGGING");
+        System.out.println("Input schema:" + inputSchema.get(i));
+        i++;
     }
-
-    // Create list of records that will be dynamically updated
-    // For valid records
-    ArrayList<Object> validRecordList = new ArrayList<>();
-
-    // For invalid records
-    ArrayList<Object> invalidRecordList = new ArrayList<>();
 
     // Schema list iterator
     int iterator = 0;
@@ -182,151 +198,65 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
 
       String name = field.getName();
 
-      LOG.info("log should appear here");
-
       if (input.get(name) != null) {
 
         // Comparing fields for schema validation
-
         /*
         1. Establish a list of fields and data types from GCS schema bucket
         2. Use a for loop to compare each field of the raw data to schema data types
            Can use built-in Java functions for thi
         3. Records that pass the validation should be emitted
-
-        switch (inputSchema.get(iterator)) {
-          case "Int" -> int_validation(input.get(name));
-        };
-
         */
 
-        if (inputSchema.get(iterator).equals("int")) {
-          try {
-
-            Integer.parseInt(input.get(name));
-            validRecordList.add(Integer.parseInt(input.get(name)));
-
-          } catch (Exception e) {
-
-            invalidRecordList.add(input.get(name));
-            validRecordList.add(input.get(name));
-
-          }
-
+        // Validates numbers
+        if (inputSchema.get(iterator).matches("int|float|double|long")) {
+          numberTryParse(input.get(name), inputSchema.get(iterator));
         }
 
+        // Validates strings
         else if (inputSchema.get(iterator).equals("string")) {
-
-          try {
-            String outputString = input.get(name).toString();
-
-            validRecordList.add(outputString);
-
-          } catch (Exception e) {
-            invalidRecordList.add(input.get(name));
-            validRecordList.add(input.get(name));
-
-          }
+          stringTryParse(input.get(name));
         }
 
-        else if (inputSchema.get(iterator).equals("float")) {
-
-          try {
-            Float.parseFloat(input.get(name));
-
-            validRecordList.add(Float.parseFloat(input.get(name)));
-          }
-          catch (Exception e) {
-            invalidRecordList.add(input.get(name));
-            validRecordList.add(input.get(name));
-          }
-        }
-
-        else if (inputSchema.get(iterator).equals("long")) {
-
-          try {
-            Long.parseLong(input.get(name));
-
-            validRecordList.add(Long.parseLong(input.get(name)));
-          }
-          catch (Exception e) {
-            invalidRecordList.add(input.get(name));
-            validRecordList.add(input.get(name));
-          }
-        }
-
-        else if (inputSchema.get(iterator).equals("double")) {
-
-          try {
-            Double.parseDouble(input.get(name));
-
-            validRecordList.add(Double.parseDouble(input.get(name)));
-          }
-          catch (Exception e) {
-            invalidRecordList.add(input.get(name));
-            validRecordList.add(input.get(name));
-          }
-        }
-
+        // Validates booleans
         else if (inputSchema.get(iterator).equals("boolean")) {
-
-          try {
-            Boolean.parseBoolean(input.get(name));
-
-            validRecordList.add(Boolean.parseBoolean(input.get(name)));
-          }
-          catch (Exception e) {
-            invalidRecordList.add(input.get(name));
-            validRecordList.add(input.get(name));
-          }
+          booleanTryParse(input.get(name));
         }
 
+        // Validates byte arrays
         else if (inputSchema.get(iterator).equals("bytes")) {
-
-          try {
-            Byte.parseByte(input.get(name));
-
-            validRecordList.add(Byte.parseByte(input.get(name)));
-          }
-          catch (Exception e) {
-            invalidRecordList.add(input.get(name));
-            validRecordList.add(input.get(name));
-          }
+          System.out.println("has reached");
+          byteTryParse(input.get(name));
         }
 
-        /*
-        else if (inputSchema.get(iterator).equals("timestamp")) {
-
-          DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-uuuu HH:mm:ss:SSS");
-          try {
-            LocalDateTime.parse(input.get(name), formatter);
-            validRecordList.add(input.get(name));
-          }
-          catch (DateTimeParseException e) {
-            invalidRecordList.add(input.get(name));
-            validRecordList.add(input.get(name));
-          }
+        // Validates simple dates
+        else if (inputSchema.get(iterator).equals("DATE")) {
+          simpleDateTryParse(input.get(name));
+          System.out.println("here1");
         }
-        */
+
         iterator++;
       }
     }
-        int result = setRecords(invalidRecordList);
 
-        int rt = 0;
-        // No errors
-        if (result == 1) {
-          while (rt < fields.size()) {
-            builder.set(fields.get(rt).getName(), validRecordList.get(rt));
-            rt++;
-          }
-        }
-        else if (result == 2) {
-          while (rt < fields.size()) {
-            error.set(fields.get(rt).getName(), validRecordList.get(rt));
-            rt++;
-          }
-        }
+    int result = setRecords();
+
+    int rt = 0;
+    // No errors
+    if (result == 1) {
+      while (rt < fields.size()) {
+        System.out.println("Success" + fields.get(rt).getName() + "|" + validRecordList.get(rt));
+        builder.set(fields.get(rt).getName(), validRecordList.get(rt));
+        rt++;
+      }
+    }
+    else if (result == 2) {
+      while (rt < fields.size()) {
+        System.out.println("Invalid" + fields.get(rt).getName() + "|" + validRecordList.get(rt));
+        error.set(fields.get(rt).getName(), validRecordList.get(rt));
+        rt++;
+      }
+    }
 
     // If you wanted to make additional changes to the output record, this might be a good place to do it.
 
@@ -336,13 +266,16 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
     }
 
     else {
-
       // Finally, build and emit the record.
       emitter.emit(builder.build());
     }
   }
 
-  // Set Output Schema
+  /** Sets a custom output schema for testing framework
+   * @param config config
+   * @param inputSchema input schema
+   * @return returns field names and record values
+   */
   private static Schema getOutputSchema(Config config, Schema inputSchema) {
     List<Schema.Field> fields = new ArrayList<>();
 
@@ -353,35 +286,135 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
     return Schema.recordOf(inputSchema.getRecordName(), fields);
   }
 
-  // Emit whole records
-  public static int setRecords(ArrayList<Object> invalidRecordList) {
+  /** Determines whether to emit a success or error record
+   */
+  public static int setRecords() {
 
     if (invalidRecordList.isEmpty()) {
-     return 1;
+      return 1;
     }
 
     else {
+      System.out.println("If outputted, all good");
       return 2;
     }
   }
 
-  /*
-  // Int tryParse
-  public static int intTryParse (Integer value) {
+  /**
+   * Parsing method for numbers
+   *
+   * @param recordValue Record value
+   * @param recordType Record datatype
+   */
+  public static void numberTryParse (String recordValue, String recordType) {
+
+    switch (recordType) {
+      case "int":
+        try {
+          Integer intValue = Integer.parseInt(recordValue);
+          validRecordList.add(intValue);
+
+        } catch (Exception e) {
+          invalidRecordList.add(recordValue);
+          validRecordList.add(recordValue);
+        }
+
+      case "float":
+        try {
+          Float floatValue = Float.parseFloat(recordValue);
+          validRecordList.add(floatValue);
+
+        }
+        catch (Exception e) {
+          invalidRecordList.add(recordValue);
+          validRecordList.add(recordValue);
+        }
+
+      case "double":
+        try {
+          Float floatValue = Float.parseFloat(recordValue);
+          validRecordList.add(floatValue);
+
+        }
+        catch (Exception e) {
+          invalidRecordList.add(recordValue);
+          validRecordList.add(recordValue);
+        }
+
+      case "long":
+        try {
+          Long longValue = Long.parseLong(recordValue);
+          validRecordList.add(longValue);
+
+        }
+        catch (Exception e) {
+          invalidRecordList.add(recordValue);
+          validRecordList.add(recordValue);
+        }
+    }
+  }
+
+  /** Parsing method for strings
+   * @param recordValue Record value
+   */
+  public static void stringTryParse (String recordValue) {
+
+      validRecordList.add(recordValue);
+  }
+
+  /** Parsing method for byte array
+   * @param recordValue Record value
+   */
+  public static void byteTryParse (String recordValue) {
+      byte[] byteValue = recordValue.getBytes();
+      validRecordList.add(recordValue);
+  }
+
+  /** Parsing method for simple date
+   * @param recordValue Record value
+   */
+  public static void simpleDateTryParse (String recordValue) {
+
     try {
+      DateFormat formatter = new SimpleDateFormat("dd/MM/yyyy");
+      formatter.setLenient(false);
+      Date date = formatter.parse(recordValue);
 
-      Integer.parseInt(input.get(name));
-      validRecordList.add(Integer.parseInt(input.get(name)));
+      ZonedDateTime zonedDateTime = ZonedDateTime.from(date.toInstant().atZone(ZoneId.ofOffset("UTC", ZoneOffset.UTC)));
 
-    } catch (Exception e) {
+      // Calculate number of days since epoch
+      Long daysLong = ChronoUnit.DAYS.between(Instant.EPOCH, zonedDateTime);
+      Integer daysInt = daysLong.intValue();
 
-      invalidRecordList.add(input.get(name));
-      validRecordList.add(input.get(name));
+      validRecordList.add(daysInt);
+      System.out.println(zonedDateTime);
 
     }
+    catch (ParseException e) {
+      System.out.println("Exception: " + e);
+      invalidRecordList.add(recordValue);
+      validRecordList.add(recordValue);
 
+    }
   }
-  */
+
+  /** Parsing method for booleans
+   * @param recordValue Record value
+   */
+  public static void booleanTryParse (String recordValue) {
+
+    recordValue = recordValue.toLowerCase();
+
+    if (recordValue.equals("true") || recordValue.equals("false")) {
+      Boolean booleanValue = Boolean.valueOf(recordValue);
+      validRecordList.add(booleanValue);
+    }
+
+    else {
+      validRecordList.add(recordValue);
+      invalidRecordList.add(recordValue);
+    }
+  }
 
   /**
    * This function will be called at the end of the pipeline. You can use it to clean up any variables or connections.
@@ -433,11 +466,5 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
       // If your plugin depends on fields from the input schema being present or the right type, use inputSchema
     }
   }
-
-  /*
-  public void int_validation(String value){
-
-  }
-  */
 }
 
