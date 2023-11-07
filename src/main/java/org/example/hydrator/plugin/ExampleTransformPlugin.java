@@ -30,13 +30,14 @@ import org.slf4j.LoggerFactory;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.sql.Time;
+import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.text.DateFormat;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Date;
@@ -178,14 +179,14 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
     int i = 0;
     for (Schema.Field fd : fields) {
         if (fd.getSchema().getLogicalType() == null) {
-          inputSchema.add(fd.getSchema().toString().replace("\"", ""));
+          inputSchema.add(fd.getSchema().toString().toLowerCase().replace("\"", ""));
         }
         else {
-          inputSchema.add(fd.getSchema().getLogicalType().toString().replace("\"", ""));
+          inputSchema.add(fd.getSchema().getLogicalType().toString().toLowerCase().replace("\"", ""));
         }
         System.out.println("Logical type:" + fd.getSchema().getLogicalType());
         System.out.println("Type:" + fd.getSchema().getType());
-        LOG.info("LOGGING");
+        LOG.info(fd.getSchema().toString());
         System.out.println("Input schema:" + inputSchema.get(i));
         i++;
     }
@@ -230,9 +231,22 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
         }
 
         // Validates simple dates
-        else if (inputSchema.get(iterator).equals("DATE")) {
+        else if (inputSchema.get(iterator).equals("date")) {
           simpleDateTryParse(input.get(name));
           System.out.println("here1");
+        }
+
+        // Validates timestamps
+        else if (inputSchema.get(iterator).matches("timestamp_micros|timestamp_millis")) {
+          LOG.info("timestamp reached");
+          System.out.println("timestamp reached");
+          timestampTryParse(input.get(name), inputSchema.get(iterator));
+
+          System.out.println("done");
+        }
+
+        else if (inputSchema.get(iterator).matches("time_micros|time_millis")) {
+          timeTryParse(input.get(name));
         }
 
         iterator++;
@@ -291,6 +305,7 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
   public static int setRecords() {
 
     if (invalidRecordList.isEmpty()) {
+      System.out.println("empty");
       return 1;
     }
 
@@ -302,7 +317,6 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
 
   /**
    * Parsing method for numbers
-   *
    * @param recordValue Record value
    * @param recordType Record datatype
    */
@@ -388,15 +402,91 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
 
       validRecordList.add(daysInt);
       System.out.println(zonedDateTime);
-
     }
-    catch (ParseException e) {
-      System.out.println("Exception: " + e);
+    catch (DateTimeParseException e) {
+      System.out.println("DateTime Parse Exception: " + e);
+      LOG.warn("Date Parse Exception (DATETIME PARSE): " + e);
       invalidRecordList.add(recordValue);
       validRecordList.add(recordValue);
 
     }
+    catch (ParseException e) {
+        System.out.println("Parse Exception: " + e);
+        LOG.warn("Date Parse Exception (PARSE): " + e);
+        invalidRecordList.add(recordValue);
+        validRecordList.add(recordValue);
+    }
   }
+
+  /** Parsing method for timestamps
+   * @param recordValue Record value
+   * @param recordType Record type
+   */
+  public static void timestampTryParse (String recordValue, String recordType) {
+
+    switch (recordType) {
+      case "timestamp_millis":
+
+       try {
+
+         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss.SSS");
+         LocalDateTime localDateTime = LocalDateTime.from(formatter.parse(recordValue));
+
+         Timestamp timestamp = Timestamp.valueOf(localDateTime);
+
+         Long millisLong = ChronoUnit.MILLIS.between(Instant.EPOCH, timestamp.toInstant());
+
+         validRecordList.add(millisLong);
+         LOG.info("Timestamp millis: " + millisLong);
+
+       }
+       catch (DateTimeParseException e) {
+         LOG.warn("Timestamp Parse Millis Exception (DATETIME PARSE): " + e);
+         invalidRecordList.add(recordValue);
+         validRecordList.add(recordValue);
+       }
+
+      case "timestamp_micros":
+
+        try {
+          DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss.SSSSSS");
+          LocalDateTime localDateTime = LocalDateTime.from(formatter.parse(recordValue));
+
+          Timestamp timestamp = Timestamp.valueOf(localDateTime);
+
+          Long microsLong = ChronoUnit.MICROS.between(Instant.EPOCH, timestamp.toInstant());
+
+          validRecordList.add(microsLong);
+          LOG.info("Timestamp micros: " + microsLong);
+        }
+        catch (DateTimeParseException e) {
+          LOG.warn("Timestamp Micros Parse Exception (DATETIME PARSE): " + e);
+          invalidRecordList.add(recordValue);
+          validRecordList.add(recordValue);
+        }
+    }
+  }
+
+  /** Parsing method for time
+   * @param recordValue Record value
+   */
+  public static void timeTryParse (String recordValue) {
+
+    try {
+      LocalTime localTime = LocalTime.parse(recordValue);
+
+      long timeValueNano = localTime.toNanoOfDay() / 1000;
+
+      validRecordList.add(timeValueNano);
+      LOG.info("Time micros: " + timeValueNano);
+    }
+    catch (DateTimeParseException e) {
+      LOG.warn("Time Micros Parse Exception: " + e);
+      invalidRecordList.add(recordValue);
+      validRecordList.add(recordValue);
+    }
+  }
+
 
   /** Parsing method for booleans
    * @param recordValue Record value
