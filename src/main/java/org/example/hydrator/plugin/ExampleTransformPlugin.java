@@ -74,6 +74,9 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
   // For invalid records
   private static ArrayList<Object> invalidRecordList = new ArrayList<>();
 
+  // Record error message
+  private static String errorMsg = "";
+
   public ExampleTransformPlugin(Config config) {
     this.config = config;
   }
@@ -170,9 +173,10 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
     // Create a builder for creating the error records
     StructuredRecord.Builder error = StructuredRecord.builder(input.getSchema());
 
-    // Clear lists
+    // Clear lists and error messages
     validRecordList.clear();
     invalidRecordList.clear();
+    errorMsg = "";
 
     // Create schema list
     ArrayList<String> inputSchema = new ArrayList<>();
@@ -211,6 +215,8 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
 
         // Validates numbers
         if (inputSchema.get(iterator).matches("int|float|double|long")) {
+          System.out.println("int herestart");
+          System.out.println(inputSchema.get(iterator));
           numberTryParse(input.get(name), inputSchema.get(iterator));
         }
 
@@ -246,9 +252,11 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
         }
 
         else if (inputSchema.get(iterator).matches("time_micros|time_millis")) {
+          System.out.println("reached time micros");
           timeTryParse(input.get(name));
         }
 
+        System.out.println(validRecordList.get(iterator));
         iterator++;
       }
     }
@@ -267,6 +275,7 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
     else if (result == 2) {
       while (rt < fields.size()) {
         System.out.println("Invalid" + fields.get(rt).getName() + "|" + validRecordList.get(rt));
+        System.out.println(fields.get(rt).getSchema());
         error.set(fields.get(rt).getName(), validRecordList.get(rt));
         rt++;
       }
@@ -275,7 +284,7 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
     // If you wanted to make additional changes to the output record, this might be a good place to do it.
 
     if (!invalidRecordList.isEmpty()) {
-      InvalidEntry<StructuredRecord> invalidEntry = new InvalidEntry<>(1, "Records do not match schema", error.build());
+      InvalidEntry<StructuredRecord> invalidEntry = new InvalidEntry<>(1, errorMsg, error.build());
       emitter.emitError(invalidEntry);
     }
 
@@ -322,49 +331,75 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
    */
   public static void numberTryParse (String recordValue, String recordType) {
 
+    System.out.println("Record type" + recordType);
     switch (recordType) {
       case "int":
         try {
           Integer intValue = Integer.parseInt(recordValue);
           validRecordList.add(intValue);
+          System.out.println("Int: " + intValue);
 
         } catch (Exception e) {
           invalidRecordList.add(recordValue);
           validRecordList.add(recordValue);
+
+          errorMsg = errorMsg + recordValue + " doesn't match schema type (INT)\n";
+          System.out.println(errorMsg);
+          System.out.print("Exception:" + e);
+
         }
+        break;
 
       case "float":
         try {
           Float floatValue = Float.parseFloat(recordValue);
           validRecordList.add(floatValue);
 
+          System.out.println("Float: " + floatValue);
         }
         catch (Exception e) {
           invalidRecordList.add(recordValue);
           validRecordList.add(recordValue);
+
+          errorMsg = errorMsg + recordValue + "doesn't match schema type (FLOAT)\n";
+
+          System.out.print("Exception:" + e);
         }
+        break;
 
       case "double":
         try {
-          Float floatValue = Float.parseFloat(recordValue);
-          validRecordList.add(floatValue);
+          Double doubleValue = Double.parseDouble(recordValue);
+          validRecordList.add(doubleValue);
 
         }
         catch (Exception e) {
           invalidRecordList.add(recordValue);
           validRecordList.add(recordValue);
+
+          errorMsg = errorMsg + recordValue + " doesn't match schema type (DOUBLE)\n";
+
+          System.out.print("Exception:" + e);
         }
+        break;
 
       case "long":
         try {
           Long longValue = Long.parseLong(recordValue);
           validRecordList.add(longValue);
+          System.out.println("Long: " + longValue);
 
         }
         catch (Exception e) {
           invalidRecordList.add(recordValue);
           validRecordList.add(recordValue);
+
+          errorMsg = errorMsg + recordValue + " doesn't match schema type (LONG)\n";
+          System.out.println(errorMsg);
+
+          System.out.print("Exception:" + e);
         }
+        break;
     }
   }
 
@@ -404,17 +439,19 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
       System.out.println(zonedDateTime);
     }
     catch (DateTimeParseException e) {
-      System.out.println("DateTime Parse Exception: " + e);
       LOG.warn("Date Parse Exception (DATETIME PARSE): " + e);
       invalidRecordList.add(recordValue);
       validRecordList.add(recordValue);
 
+      errorMsg = errorMsg + recordValue + " doesn't match schema type (DATE)\n";
+
     }
     catch (ParseException e) {
-        System.out.println("Parse Exception: " + e);
-        LOG.warn("Date Parse Exception (PARSE): " + e);
-        invalidRecordList.add(recordValue);
-        validRecordList.add(recordValue);
+      LOG.warn("Date Parse Exception (PARSE): " + e);
+      invalidRecordList.add(recordValue);
+      validRecordList.add(recordValue);
+
+      errorMsg = errorMsg + recordValue + " doesn't match schema type (DATE)\n";
     }
   }
 
@@ -444,7 +481,11 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
          LOG.warn("Timestamp Parse Millis Exception (DATETIME PARSE): " + e);
          invalidRecordList.add(recordValue);
          validRecordList.add(recordValue);
+
+         errorMsg = errorMsg + recordValue + " doesn't match schema type (TIMESTAMP_MILLIS)\n";
        }
+
+       break;
 
       case "timestamp_micros":
 
@@ -463,7 +504,10 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
           LOG.warn("Timestamp Micros Parse Exception (DATETIME PARSE): " + e);
           invalidRecordList.add(recordValue);
           validRecordList.add(recordValue);
+
+          errorMsg = errorMsg + recordValue + " doesn't match schema type (TIMESTAMP_MICROS)\n";
         }
+        break;
     }
   }
 
@@ -478,12 +522,16 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
       long timeValueNano = localTime.toNanoOfDay() / 1000;
 
       validRecordList.add(timeValueNano);
+      System.out.println(validRecordList.get(3));
       LOG.info("Time micros: " + timeValueNano);
     }
     catch (DateTimeParseException e) {
       LOG.warn("Time Micros Parse Exception: " + e);
       invalidRecordList.add(recordValue);
       validRecordList.add(recordValue);
+
+      errorMsg = errorMsg + recordValue + " doesn't match schema type (TIME_MICROS)\n";
+      System.out.println("errorMsg");
     }
   }
 
@@ -503,6 +551,8 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
     else {
       validRecordList.add(recordValue);
       invalidRecordList.add(recordValue);
+
+      errorMsg = errorMsg + recordValue + " doesn't match schema type (BOOLEAN)\n";
     }
   }
 
