@@ -36,10 +36,10 @@ public class ExampleTransformTest {
 
   @Test
   public void testMyTransform() throws Exception {
-    ExampleTransformPlugin.Config config = new ExampleTransformPlugin.Config("/home/mayur/Documents/lbg-projects/cdap-env/int-schema.json", null, INPUT.toString());
+    ExampleTransformPlugin.Config config = new ExampleTransformPlugin.Config("/home/mayur/Documents/lbg-projects/cdap-env/byte-schema.json", null, INPUT.toString());
     Transform<StructuredRecord, StructuredRecord> transform = new ExampleTransformPlugin(config);
     transform.configurePipeline(null);
-    transform.initialize(null);
+    //transform.initialize(null);
 
     MockEmitter<StructuredRecord> emitter = new MockEmitter<>();
 
@@ -50,7 +50,7 @@ public class ExampleTransformTest {
 
     transform.transform(StructuredRecord.builder(INPUT)
                           .set("name", "Louise")
-                          .set("age", "fourtythree").build(), emitter);
+                          .set("age", "[10, 20, 30]").build(), emitter);
                           //.set("date", "27;02;2023 15:13:11:987").build(), emitter);
 
     /*
@@ -59,10 +59,10 @@ public class ExampleTransformTest {
     */
 
     Assert.assertEquals("Ryan", emitter.getEmitted().get(0).get("name"));
-    Assert.assertEquals((Integer) 43, emitter.getEmitted().get(0).get("age"));
+    //Assert.assertEquals((Integer) 43, emitter.getEmitted().get(0).get("age"));
     //Assert.assertEquals("Louise", emitter.getEmitted().get(1).get("name"));
     //Assert.assertEquals((Integer) 23, emitter.getEmitted().get(1).get("age"));
-    //Assert.assertEquals(1, emitter.getErrors().get(1).getErrorCode());
+    Assert.assertEquals(1, emitter.getErrors().get(0).getErrorCode());
 
   }
 }
