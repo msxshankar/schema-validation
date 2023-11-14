@@ -252,11 +252,10 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
         }
 
         else if (inputSchema.get(iterator).matches("time_micros|time_millis")) {
-          System.out.println("reached time micros");
-          timeTryParse(input.get(name));
+          timeTryParse(input.get(name), inputSchema.get(iterator));
         }
 
-        System.out.println(validRecordList.get(iterator));
+        System.out.println("Current record " + validRecordList.get(iterator));
         iterator++;
       }
     }
@@ -276,7 +275,7 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
       while (rt < fields.size()) {
         System.out.println("Invalid" + fields.get(rt).getName() + "|" + validRecordList.get(rt));
         System.out.println(fields.get(rt).getSchema());
-        error.set(fields.get(rt).getName(), validRecordList.get(rt));
+        error.set(fields.get(rt).getName(), validRecordList.get(rt).toString());
         rt++;
       }
     }
@@ -331,7 +330,7 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
    */
   public static void numberTryParse (String recordValue, String recordType) {
 
-    System.out.println("Record type" + recordType);
+    System.out.println("Record type: " + recordType);
     switch (recordType) {
       case "int":
         try {
@@ -386,8 +385,8 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
       case "long":
         try {
           Long longValue = Long.parseLong(recordValue);
-          validRecordList.add(longValue);
           System.out.println("Long: " + longValue);
+          validRecordList.add(longValue);
 
         }
         catch (Exception e) {
@@ -461,6 +460,9 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
    */
   public static void timestampTryParse (String recordValue, String recordType) {
 
+    // Trim any whitespace
+    recordValue = recordValue.trim();
+
     switch (recordType) {
       case "timestamp_millis":
 
@@ -490,6 +492,7 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
       case "timestamp_micros":
 
         try {
+          System.out.println(recordValue);
           DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss.SSSSSS");
           LocalDateTime localDateTime = LocalDateTime.from(formatter.parse(recordValue));
 
@@ -497,6 +500,7 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
 
           Long microsLong = ChronoUnit.MICROS.between(Instant.EPOCH, timestamp.toInstant());
 
+          System.out.println(timestamp);
           validRecordList.add(microsLong);
           LOG.info("Timestamp micros: " + microsLong);
         }
@@ -513,25 +517,50 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
 
   /** Parsing method for time
    * @param recordValue Record value
+   * @param recordType Record Type
    */
-  public static void timeTryParse (String recordValue) {
+  public static void timeTryParse (String recordValue, String recordType) {
 
-    try {
-      LocalTime localTime = LocalTime.parse(recordValue);
+    switch (recordType) {
+      case "time_micros":
+        try {
+          LocalTime localTime = LocalTime.parse(recordValue);
 
-      long timeValueNano = localTime.toNanoOfDay() / 1000;
+          long timeValueMicros = localTime.toNanoOfDay() / 1000;
 
-      validRecordList.add(timeValueNano);
-      System.out.println(validRecordList.get(3));
-      LOG.info("Time micros: " + timeValueNano);
-    }
-    catch (DateTimeParseException e) {
-      LOG.warn("Time Micros Parse Exception: " + e);
-      invalidRecordList.add(recordValue);
-      validRecordList.add(recordValue);
+          System.out.println("Result" + timeValueMicros);
+          validRecordList.add(timeValueMicros);
+          System.out.println("Result2" + timeValueMicros);
+          //System.out.println(validRecordList.get(3));
+          LOG.info("Time micros: " + timeValueMicros);
+        }
+        catch (DateTimeParseException e) {
+          LOG.warn("Time Micros Parse Exception: " + e);
+          invalidRecordList.add(recordValue);
+          validRecordList.add(recordValue);
 
-      errorMsg = errorMsg + recordValue + " doesn't match schema type (TIME_MICROS)\n";
-      System.out.println("errorMsg");
+          errorMsg = errorMsg + recordValue + " doesn't match schema type (TIME_MICROS)\n";
+          System.out.println(errorMsg);
+      }
+      break;
+
+      case "time_millis":
+        try {
+          LocalTime localTime = LocalTime.parse(recordValue);
+
+          long timeValueMillis = localTime.toNanoOfDay() / 1000000;
+
+          validRecordList.add(timeValueMillis);
+          LOG.info("Time millis: " + timeValueMillis);
+        }
+        catch (DateTimeParseException e) {
+          LOG.warn("Time Millis Parse Exception: " + e + "\n");
+          invalidRecordList.add(recordValue);
+          validRecordList.add(recordValue);
+
+          errorMsg = errorMsg + recordValue + " doesn't match schema type (TIME_MILLIS)\n";
+        }
+      break;
     }
   }
 
@@ -545,6 +574,7 @@ public class ExampleTransformPlugin extends Transform<StructuredRecord, Structur
 
     if (recordValue.equals("true") || recordValue.equals("false")) {
       Boolean booleanValue = Boolean.valueOf(recordValue);
+      System.out.println("Boolean parsed as: " + booleanValue);
       validRecordList.add(booleanValue);
     }
 
